@@ -144,6 +144,18 @@ func (s *composeService) build(ctx context.Context, project *types.Project, opts
 	if len(opts) == 0 {
 		return nil
 	}
+
+	info, err := s.apiClient.Info(ctx)
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("OS TYPE:%q, op system:%q\n", info.OSType, info.OperatingSystem)
+	if info.OSType == "windows" {
+		s.apiClient.ImageBuild(ctx)
+		fmt.Println("SWITCHING !!")
+	}
+
 	const drivername = "default"
 	d, err := driver.GetDriver(ctx, drivername, nil, s.apiClient, nil, nil, nil, "", nil, nil, project.WorkingDir)
 	if err != nil {
