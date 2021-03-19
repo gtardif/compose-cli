@@ -19,11 +19,10 @@ package compose
 import (
 	"context"
 	"fmt"
+	"io"
 	"os"
 	"path"
 	"strings"
-
-	"github.com/docker/compose-cli/api/compose"
 
 	"github.com/compose-spec/compose-go/types"
 	"github.com/containerd/containerd/platforms"
@@ -31,9 +30,18 @@ import (
 	"github.com/docker/buildx/driver"
 	_ "github.com/docker/buildx/driver/docker" // required to get default driver registered
 	"github.com/docker/buildx/util/progress"
+	dockerbuild "github.com/docker/cli/cli/command/image/build"
+	apitypes "github.com/docker/docker/api/types"
 	"github.com/docker/docker/errdefs"
+	"github.com/docker/docker/pkg/archive"
+	"github.com/docker/docker/pkg/idtools"
+	cliprogress "github.com/docker/docker/pkg/progress"
+	"github.com/docker/docker/pkg/streamformatter"
 	bclient "github.com/moby/buildkit/client"
 	specs "github.com/opencontainers/image-spec/specs-go/v1"
+	"github.com/pkg/errors"
+
+	"github.com/docker/compose-cli/api/compose"
 )
 
 func (s *composeService) Build(ctx context.Context, project *types.Project, options compose.BuildOptions) error {
@@ -151,9 +159,83 @@ func (s *composeService) build(ctx context.Context, project *types.Project, opts
 	}
 
 	fmt.Printf("OS TYPE:%q, op system:%q\n", info.OSType, info.OperatingSystem)
-	if info.OSType == "windows" {
-		s.apiClient.ImageBuild(ctx)
-		fmt.Println("SWITCHING !!")
+	if info.OSType != "windows" {
+		for _, imageOpts := range opts {
+
+			// Setup an upload progress bar
+			progressOutput := streamformatter.NewProgressOutput(os.Stdout)
+			//if !dockerCli.Out().IsTerminal() {
+			//	progressOutput = &lastProgressOutput{output: progressOutput}
+			//}
+
+			// if up to this point nothing has set the context then we must have another
+			// way for sending it(streaming) and set the context to the Dockerfile
+			//if dockerfileCtx != nil && buildCtx == nil {
+			//	buildCtx = dockerfileCtx
+			//}
+			contextDir, relDockerfile, err := dockerbuild.GetContextFromLocalDir(imageOpts.Inputs.ContextPath, imageOpts.Inputs.DockerfilePath)
+			excludes, err := dockerbuild.ReadDockerignore(contextDir)
+			if err != nil {
+				return err
+			}
+
+			if err := dockerbuild.ValidateContextDirectory(contextDir, excludes); err != nil {
+				return errors.Errorf("error checking context: '%s'.", err)
+			}
+
+			// And canonicalize dockerfile name to a platform-independent one
+			relDockerfile = archive.CanonicalTarNameForPath(relDockerfile)
+
+			excludes = dockerbuild.TrimBuildFilesFromExcludes(excludes, relDockerfile, false)
+			buildCtx, err := archive.TarWithOptions(contextDir, &archive.TarOptions{
+				ExcludePatterns: excludes,
+				ChownOpts:       &idtools.Identity{UID: 0, GID: 0},
+			})
+			if err != nil {
+				return err
+			}
+			var body io.Reader
+			body = cliprogress.NewProgressReader(buildCtx, progressOutput, 0, "", "Sending build context to Docker daemon")
+
+			/*
+				configFile := dockerCli.ConfigFile()
+				creds, _ := configFile.GetAllCredentials()
+				authConfigs := make(map[string]apitypes.AuthConfig, len(creds))
+				for k, auth := range creds {
+					authConfigs[k] = apitypes.AuthConfig(auth)
+				}
+				buildOptions := imageBuildOptions(dockerCli, options)
+				buildOptions.Version = apitypes.BuilderV1
+				buildOptions.Dockerfile = relDockerfile
+				buildOptions.AuthConfigs = authConfigs
+				buildOptions.RemoteContext = remotez
+			*/
+
+			/*
+				Inputs: build.Inputs{
+					ContextPath:    path.Join(contextPath, service.Build.Context),
+					DockerfilePath: path.Join(contextPath, service.Build.Context, service.Build.Dockerfile),
+				},
+				BuildArgs: flatten(mergeArgs(service.Build.Args, buildArgs)),
+				Tags:      tags,
+				Target:    service.Build.Target,
+				Exports:   []bclient.ExportEntry{{Type: "image", Attrs: map[string]string{}}},
+				Platforms: plats,
+				Labels:    service.Build.Labels,
+			*/
+			imageBuildOptions := apitypes.ImageBuildOptions{
+				Version:    apitypes.BuilderV1,
+				Tags:       imageOpts.Tags,
+				Labels:     imageOpts.Labels,
+				Target:     imageOpts.Target,
+				Dockerfile: imageOpts.Inputs.DockerfilePath,
+			}
+			_, err = s.apiClient.ImageBuild(ctx, body, imageBuildOptions)
+			if err != nil {
+				return err
+			}
+		}
+		return nil
 	}
 
 	const drivername = "default"
