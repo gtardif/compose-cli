@@ -33,6 +33,7 @@ RUN docker version | grep Cloud
 FROM install AS upgrade
 RUN DOWNLOAD_URL=${DOWNLOAD_URL} /scripts/install_linux.sh
 RUN docker version | grep Cloud
+RUN docker compose version | grep "2.0"
 
 # To run this test locally, start an HTTP server that serves the dist/ folder
 # then run a docker build passing the DOWNLOAD_URL as a build arg:

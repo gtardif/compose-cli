@@ -16,9 +16,9 @@
 
 # Script to install the Docker Compose CLI on Ubuntu (Beta).
 
-set -eu
+set -eux
 
-RELEASE_URL=https://api.github.com/repos/docker/compose-cli/releases/latest
+RELEASE_URL=https://api.github.com/repos/gtardif/compose-cli/releases/latest
 LINK_NAME="${LINK_NAME:-com.docker.cli}"
 DRY_RUN="${DRY_RUN:-}"
 
@@ -185,6 +185,8 @@ $sudo_sh_c "ln -s ${existing_cli_path} ${link_path}"
 
 # Install downloaded CLI
 $sudo_sh_c "install -m 775 ${download_dir}/docker /usr/local/bin/docker"
+# Install Compose CLI plugin
+$sh_c "mkdir -p /~/.docker/cli-plugins && cp ${download_dir}/docker-compose /~/.docker/cli-plugins/docker-compose"
 
 # Clear cache
 cleared_cache=1
