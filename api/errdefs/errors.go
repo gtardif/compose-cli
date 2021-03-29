@@ -46,6 +46,8 @@ var (
 	ErrCanceled = errors.New("canceled")
 	// ErrParsingFailed is returned when a string cannot be parsed
 	ErrParsingFailed = errors.New("parsing failed")
+	// ErrComposefileFormat is returned when a composefile cannot be parsed
+	ErrComposefileParsingFailed = errors.New("composefile parsing failed")
 	// ErrWrongContextType is returned when the caller tries to get a context
 	// with the wrong type
 	ErrWrongContextType = errors.New("wrong context type")
@@ -79,6 +81,11 @@ func IsErrNotImplemented(err error) bool {
 // IsErrParsingFailed returns true if the unwrapped error is ErrParsingFailed
 func IsErrParsingFailed(err error) bool {
 	return errors.Is(err, ErrParsingFailed)
+}
+
+// IsErrComposefileParsingFailed returns true if the unwrapped error is ErrComposefileParsingFailed
+func IsErrComposefileParsingFailed(err error) bool {
+	return errors.Is(err, ErrComposefileParsingFailed)
 }
 
 // IsErrCanceled returns true if the unwrapped error is ErrCanceled
