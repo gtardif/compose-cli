@@ -165,6 +165,7 @@ func Command(contextType string) *cobra.Command {
 		topCommand(&opts),
 		eventsCommand(&opts),
 		portCommand(&opts),
+		versionCommand(),
 	)
 
 	if contextType == store.LocalContextType || contextType == store.DefaultContextType {

@@ -29,6 +29,7 @@ import (
 
 	"github.com/compose-spec/compose-go/types"
 	"github.com/docker/compose-cli/utils"
+	"github.com/pkg/errors"
 	"github.com/sirupsen/logrus"
 	"github.com/spf13/cobra"
 	"golang.org/x/sync/errgroup"
@@ -37,6 +38,7 @@ import (
 	"github.com/docker/compose-cli/api/client"
 	"github.com/docker/compose-cli/api/compose"
 	"github.com/docker/compose-cli/api/context/store"
+	"github.com/docker/compose-cli/api/errdefs"
 	"github.com/docker/compose-cli/api/progress"
 	"github.com/docker/compose-cli/cli/formatter"
 )
@@ -140,6 +142,7 @@ func (opts upOptions) apply(project *types.Project, services []string) error {
 	return nil
 }
 
+//nolint
 func upCommand(p *projectOptions, contextType string) *cobra.Command {
 	opts := upOptions{
 		composeOptions: &composeOptions{
@@ -150,6 +153,7 @@ func upCommand(p *projectOptions, contextType string) *cobra.Command {
 		Use:   "up [SERVICE...]",
 		Short: "Create and start containers",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			var err error
 			opts.timeChanged = cmd.Flags().Changed("timeout")
 			switch contextType {
 			case store.LocalContextType, store.DefaultContextType, store.EcsLocalSimulationContextType:
@@ -168,10 +172,18 @@ func upCommand(p *projectOptions, contextType string) *cobra.Command {
 				if opts.recreateDeps && opts.noRecreate {
 					return fmt.Errorf("--always-recreate-deps and --no-recreate are incompatible")
 				}
-				return runCreateStart(cmd.Context(), opts, args)
+				err = runCreateStart(cmd.Context(), opts, args)
 			default:
-				return runUp(cmd.Context(), opts, args)
+				err = runUp(cmd.Context(), opts, args)
 			}
+
+			if err != nil {
+				if errdefs.IsErrCanceled(err) || errors.Is(cmd.Context().Err(), context.Canceled) {
+					return cli.StatusError{StatusCode: 130}
+				}
+				return err
+			}
+			return nil
 		},
 	}
 	flags := upCmd.Flags()
