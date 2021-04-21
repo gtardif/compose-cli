@@ -19,7 +19,6 @@ package compose
 import (
 	"context"
 	"fmt"
-	"path/filepath"
 	"strings"
 	"time"
 
@@ -208,11 +207,7 @@ func (s *composeService) projectFromContainerLabels(containers Containers, proje
 }
 
 func loadProjectOptionsFromLabels(c moby.Container) (*cli.ProjectOptions, error) {
-	var configFiles []string
-	relativePathConfigFiles := strings.Split(c.Labels[configFilesLabel], ",")
-	for _, c := range relativePathConfigFiles {
-		configFiles = append(configFiles, filepath.Base(c))
-	}
+	configFiles := strings.Split(c.Labels[configFilesLabel], ",")
 	return cli.NewProjectOptions(configFiles,
 		cli.WithOsEnv,
 		cli.WithWorkingDirectory(c.Labels[workingDirLabel]),

@@ -212,9 +212,18 @@ func (s *composeService) getCreateOptions(ctx context.Context, p *types.Project,
 	if _, ok := service.Labels[oneoffLabel]; !ok {
 		labels[oneoffLabel] = "False"
 	}
+	absWorkingDir, err := filepath.Abs(p.WorkingDir)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	absComposeFiles, err := absComposeFiles(p.ComposeFiles)
+	if err != nil {
+		return nil, nil, nil, err
+	}
 	labels[configHashLabel] = hash
-	labels[workingDirLabel] = p.WorkingDir
-	labels[configFilesLabel] = strings.Join(p.ComposeFiles, ",")
+	labels[workingDirLabel] = absWorkingDir
+	labels[configFilesLabel] = strings.Join(absComposeFiles, ",")
 	labels[containerNumberLabel] = strconv.Itoa(number)
 
 	var (
@@ -337,6 +346,18 @@ func (s *composeService) getCreateOptions(ctx context.Context, p *types.Project,
 
 	networkConfig := buildDefaultNetworkConfig(service, container.NetworkMode(networkMode), getContainerName(p.Name, service, number))
 	return &containerConfig, &hostConfig, networkConfig, nil
+}
+
+func absComposeFiles(composeFiles []string) ([]string, error) {
+	absComposeFiles := make([]string, len(composeFiles))
+	for i, composeFile := range composeFiles {
+		absComposefile, err := filepath.Abs(composeFile)
+		if err != nil {
+			return nil, err
+		}
+		absComposeFiles[i] = absComposefile
+	}
+	return absComposeFiles, nil
 }
 
 func getDefaultNetworkMode(project *types.Project, service types.ServiceConfig) string {
